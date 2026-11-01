@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador de Espectro FFT y Generador de Ondas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // CONFIGURACIÓN CRÍTICA PARA MODO OSCURO EN TAILWIND CDN
+        tailwind.config = {
+            darkMode: 'class'
+        };
+
+        // Aplicar tema antes del primer renderizado
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="min-h-screen p-3 md:p-8 flex flex-col items-center">
+    
+    <!-- ENCABEZADO FIJO (SIN SALTOS DE LAYOUT) -->
+    <header class="w-full max-w-6xl mb-5 flex flex-row justify-between items-center gap-3">
+        <div class="flex-1">
+            <h1 class="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                <svg class="w-7 h-7 sm:w-8 sm:h-8 text-[#1625f9] dark:text-[#16f9ad] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
+                </svg>
+                <span>Generador y Analizador FFT</span>
+            </h1>
+            <p class="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-0.5">Laboratorio de Ondas Mecánicas &bull; Análisis Espectral y Mediciones</p>
+        </div>
+
+        <!-- Controles fijos de cabecera -->
+        <div class="flex items-center gap-2 shrink-0">
+            <!-- Estado de Audio y Muestreo -->
+            <div class="hidden sm:flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm text-xs font-mono text-slate-600 dark:text-slate-300">
+                <span>Audio: <span id="audioStatusText" class="font-semibold text-slate-400 dark:text-slate-500">Inactivo</span></span>
+                <span class="text-slate-300 dark:text-slate-600">|</span>
+                <span id="sampleRateLabel">48.0 kHz</span>
+            </div>
+
+            <!-- Botón de Modo Oscuro -->
+            <button id="btnToggleDark" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-lg text-slate-700 dark:text-slate-200 transition-colors shadow-sm flex items-center justify-center h-9 w-9" title="Alternar Modo Oscuro / Claro">
+                <span id="darkIcon">🌙</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- COLUMNA DE CONTROLES (Izquierda) -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- PANEL 1: EMISOR (GENERADOR) -->
+            <section class="card p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <span>Emisor (Generador)</span>
+                    </h2>
+                    <span id="emisor-led" class="h-3 w-3 rounded-full bg-slate-300 dark:bg-slate-700 transition-colors"></span>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Selector de Forma de Onda (Iconos puros sin texto) -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Forma de Onda</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <!-- Senoidal -->
+                            <button type="button" class="wave-btn" data-wave="sine" title="Onda Senoidal">
+                                <svg viewBox="0 0 40 24" class="w-8 h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                                    <path d="M2 12 Q 11 2, 20 12 T 38 12"/>
+                                </svg>
+                            </button>
+                            <!-- Cuadrada (Activa por defecto) -->
+                            <button type="button" class="wave-btn active" data-wave="square" title="Onda Cuadrada">
+                                <svg viewBox="0 0 40 24" class="w-8 h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 18 V 6 H 20 V 18 H 38 V 6"/>
+                                </svg>
+                            </button>
+                            <!-- Diente de Sierra -->
+                            <button type="button" class="wave-btn" data-wave="sawtooth" title="Onda Diente de Sierra">
+                                <svg viewBox="0 0 40 24" class="w-8 h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 18 L 20 6 V 18 L 38 6 V 18"/>
+                                </svg>
+                            </button>
+                            <!-- Triangular -->
+                            <button type="button" class="wave-btn" data-wave="triangle" title="Onda Triangular">
+                                <svg viewBox="0 0 40 24" class="w-8 h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 18 L 11 6 L 29 18 L 38 6"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Frecuencia -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Frecuencia Fundamental (f₀)</label>
+                            <div class="flex items-center space-x-1">
+                                <input type="number" id="freqInput" min="20" max="20000" value="440" class="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-mono text-base font-bold rounded focus:ring-2 focus:ring-[#1625f9] p-1 outline-none text-center">
+                                <span class="text-sm font-bold text-slate-500 dark:text-slate-400">Hz</span>
+                            </div>
+                        </div>
+                        <input id="freqSlider" type="range" min="20" max="5000" value="440" step="1">
+                        
+                        <!-- PRESETS DE FRECUENCIA -->
+                        <div class="mt-3">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">Presets Frecuentes:</span>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                <button type="button" class="preset-btn px-2 py-1.5 text-sm font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-800 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700 text-center" data-freq="220">
+                                    220 Hz
+                                </button>
+                                <button type="button" class="preset-btn px-2 py-1.5 text-sm font-bold rounded bg-blue-100 dark:bg-blue-950/60 text-[#1625f9] dark:text-[#16f9ad] hover:bg-[#1625f9] hover:text-white border border-blue-300 dark:border-blue-800 text-center" data-freq="440">
+                                    440 Hz (La₄)
+                                </button>
+                                <button type="button" class="preset-btn px-2 py-1.5 text-sm font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-800 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700 text-center" data-freq="880">
+                                    880 Hz
+                                </button>
+                                <button type="button" class="preset-btn px-2 py-1.5 text-sm font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-800 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700 text-center" data-freq="1000">
+                                    1000 Hz
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Amplitud / Volumen -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Amplitud / Volumen</label>
+                            <span id="volumeValue" class="text-sm font-mono font-bold text-slate-700 dark:text-slate-300">30%</span>
+                        </div>
+                        <input id="volumeSlider" type="range" min="0" max="100" value="30" step="1">
+                    </div>
+
+                    <!-- Controles de Reproducción -->
+                    <div class="grid grid-cols-2 gap-2 pt-2">
+                        <button id="btnStartTone" class="bg-[#1625f9] hover:bg-[#0d1bb3] text-white font-semibold py-2.5 px-3 rounded shadow-sm transition-colors text-sm flex items-center justify-center gap-1.5">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/></svg>
+                            Reproducir
+                        </button>
+                        <button id="btnStopTone" disabled class="bg-slate-200 dark:bg-slate-800 text-slate-400 font-semibold py-2.5 px-3 rounded transition-colors text-sm cursor-not-allowed flex items-center justify-center gap-1.5">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"/></svg>
+                            Detener
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PANEL 2: RECEPTOR (MICRÓFONO) -->
+            <section class="card p-5">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">Receptor (Micrófono)</h2>
+                    <span id="receptor-led" class="h-3 w-3 rounded-full bg-slate-300 dark:bg-slate-700 transition-colors"></span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+                    Captura el sonido ambiente en vivo. La señal va directa al analizador FFT (sin retorno acústico para evitar acople).
+                </p>
+
+                <div class="grid grid-cols-1 gap-2">
+                    <button id="btnStartMic" class="border-2 border-[#1625f9] dark:border-[#16f9ad] text-[#1625f9] dark:text-[#16f9ad] hover:bg-blue-50 dark:hover:bg-slate-800/80 font-semibold py-2 px-3 rounded transition-colors text-sm flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        Activar Micrófono
+                    </button>
+                    <button id="btnStopMic" disabled class="bg-slate-200 dark:bg-slate-800 text-slate-500 font-semibold py-2 px-3 rounded transition-colors text-sm cursor-not-allowed hidden flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
+                        Desactivar Micrófono
+                    </button>
+                </div>
+                <div id="micError" class="text-red-600 text-xs mt-2 font-medium hidden"></div>
+            </section>
+
+            <!-- PANEL 3: INFORMACIÓN DE FRECUENCIA Y PARÁMETROS FFT (LEGIBLE EN CLARO Y OSCURO) -->
+            <section class="card p-5">
+                <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Parámetros Espectrales</h3>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-slate-50 dark:bg-slate-800/90 p-2.5 rounded border border-slate-200 dark:border-slate-700">
+                        <span class="block text-[11px] text-slate-500 dark:text-slate-400 font-medium">Frecuencia Pico</span>
+                        <span id="peakFreqText" class="text-lg font-bold text-[#1625f9] dark:text-[#16f9ad] font-mono">-- Hz</span>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-800/90 p-2.5 rounded border border-slate-200 dark:border-slate-700">
+                        <span class="block text-[11px] text-slate-500 dark:text-slate-400 font-medium">Nota Musical</span>
+                        <span id="noteText" class="text-lg font-bold text-slate-800 dark:text-slate-100 font-mono">--</span>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-800/90 p-2.5 rounded border border-slate-200 dark:border-slate-700">
+                        <span class="block text-[11px] text-slate-500 dark:text-slate-400 font-medium">Resolución FFT</span>
+                        <span id="resText" class="text-xs font-semibold text-slate-700 dark:text-slate-300 font-mono">-- Hz</span>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-800/90 p-2.5 rounded border border-slate-200 dark:border-slate-700">
+                        <span class="block text-[11px] text-slate-500 dark:text-slate-400 font-medium">Tamaño FFT</span>
+                        <select id="fftSizeSelect" class="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 font-mono w-full outline-none">
+                            <option value="1024" class="dark:bg-slate-800">1024 pts</option>
+                            <option value="2048" class="dark:bg-slate-800">2048 pts</option>
+                            <option value="4096" selected class="dark:bg-slate-800">4096 pts</option>
+                            <option value="8192" class="dark:bg-slate-800">8192 pts</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- COLUMNA VISUALIZADORES (Derecha) -->
+        <div class="lg:col-span-2 flex flex-col space-y-4">
+            
+            <!-- 1. OSCILOSCOPIO CON BOTÓN INTEGRADO PARA DIBUJAR ONDA PROPIA -->
+            <section class="card overflow-hidden flex flex-col">
+                <div class="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 rounded-full bg-[#16f9ad] ring-2 ring-[#16f9ad]/40"></span>
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Osciloscopio &bull; Señal en el Tiempo</h3>
+                    </div>
+
+                    <!-- Botón para ir a diseñar la onda (Ubicado aquí según solicitud) -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-mono hidden sm:inline">A(t) vs t</span>
+                        <a href="dibujar_onda.html" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-1 px-3 rounded text-xs shadow-sm transition-all flex items-center gap-1.5" title="Abrir laboratorio de diseño de ondas y funciones">
+                            <span>✏️ Dibujar Onda Propia</span>
+                            <span class="text-[10px]">&rarr;</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="relative bg-slate-950">
+                    <canvas id="oscilloscopeCanvas" class="w-full h-[150px] block"></canvas>
+                </div>
+            </section>
+
+            <!-- 2. TRANSFORMADA DE FOURIER / ESPECTRO FFT (CON CURSORES, PAUSA Y TÉRMINOS) -->
+            <section class="card overflow-hidden flex flex-col">
+                <!-- Barra superior de controles del espectro -->
+                <div class="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 rounded-full bg-[#1625f9] dark:bg-[#16f9ad] ring-2 ring-[#1625f9]/40"></span>
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Transformada de Fourier (FFT)</h3>
+                        <!-- Badge de pausa ubicado aquí (sin mover el título) -->
+                        <span id="freezeBadge" class="hidden px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-bold text-[10px] uppercase tracking-wide">Pausado</span>
+                    </div>
+
+                    <!-- Botón de Pausa / Foto y Selector de Rango de Términos -->
+                    <div class="flex items-center flex-wrap gap-2">
+                        <!-- Botón Foto / Pausa -->
+                        <button id="btnFreeze" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1 px-2.5 rounded text-xs flex items-center gap-1.5 shadow-sm transition-all" title="Congela el espectro para analizar crestas y medir">
+                            <span id="freezeIcon">📸</span>
+                            <span id="freezeText">Tomar Foto / Pausa</span>
+                        </button>
+
+                        <!-- Selector de Rango: 2, 5, 10, 15, 20 términos / subtonos o frecuencias fijas -->
+                        <div class="flex items-center gap-1">
+                            <label for="freqRangeSelect" class="text-xs font-semibold text-slate-600 dark:text-slate-300">Rango:</label>
+                            <select id="freqRangeSelect" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs font-semibold rounded px-2 py-1 outline-none focus:ring-1 focus:ring-[#1625f9]">
+                                <optgroup label="Términos / Armónicos de la Transformada">
+                                    <option value="terms-2" class="dark:bg-slate-800">2 Términos (2 × f₀)</option>
+                                    <option value="terms-5" selected class="dark:bg-slate-800">5 Términos (5 × f₀)</option>
+                                    <option value="terms-10" class="dark:bg-slate-800">10 Términos (10 × f₀)</option>
+                                    <option value="terms-15" class="dark:bg-slate-800">15 Términos (15 × f₀)</option>
+                                    <option value="terms-20" class="dark:bg-slate-800">20 Términos (20 × f₀)</option>
+                                </optgroup>
+                                <optgroup label="Rangos de Frecuencia Fijos">
+                                    <option value="2500" class="dark:bg-slate-800">0 - 2.5 kHz</option>
+                                    <option value="5000" class="dark:bg-slate-800">0 - 5.0 kHz (Audio)</option>
+                                    <option value="10000" class="dark:bg-slate-800">0 - 10.0 kHz</option>
+                                    <option value="full" class="dark:bg-slate-800">0 - Nyquist (Completo)</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BARRA DE GESTIÓN DE CURSORES (HASTA 5 CURSORES) -->
+                <div class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <!-- Contenedor dinámico de pestañas de cursores -->
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-bold text-slate-500 dark:text-slate-400 mr-1">Cursores:</span>
+                        
+                        <div id="cursorPillsContainer" class="flex items-center gap-1.5 flex-wrap">
+                            <!-- Los botones de cursores se inyectan dinámicamente aquí -->
+                        </div>
+
+                        <!-- Botón para añadir cursor (hasta un máximo de 5) -->
+                        <button id="btnAddCursor" class="px-2 py-1 rounded font-bold border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-[#1625f9] hover:text-[#1625f9] transition-all flex items-center gap-1" title="Añadir hasta 5 cursores de medición">
+                            <span>+ Agregar</span>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Botón Buscar Cresta a la derecha para el cursor activo -->
+                        <button id="btnSnapPeakRight" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-2.5 rounded shadow-sm flex items-center gap-1 transition-all" title="Desplaza el cursor activo al siguiente pico o cresta hacia la derecha">
+                            <span>🔍 Cresta Derecha ➔</span>
+                        </button>
+                        <!-- Botón Limpiar Cursores -->
+                        <button id="btnClearCursors" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium py-1 px-2 rounded border border-slate-300 dark:border-slate-600 transition-all" title="Quitar marcadores">
+                            ✕ Limpiar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Canvas de Espectro con Tooltip Interactivo -->
+                <div class="relative spectrum-container bg-white dark:bg-slate-950 cursor-crosshair">
+                    <canvas id="spectrumCanvas" class="w-full h-[220px] block"></canvas>
+                    <div id="spectrumTooltip" class="canvas-tooltip"></div>
+                </div>
+
+                <!-- Panel de Medición de Cursores y Diferencias (Δf) -->
+                <div class="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-mono">
+                    <div id="cursorReadoutsContainer" class="flex flex-wrap items-center gap-4 mb-1">
+                        <!-- Las lecturas C1, C2, C3... se inyectan dinámicamente aquí -->
+                    </div>
+                    <div id="deltaContainer" class="flex items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+                        <span class="text-slate-600 dark:text-slate-400 font-sans font-bold">Diferencia:</span>
+                        <span id="deltaFReadout" class="font-bold text-blue-900 dark:text-blue-300">-- Hz</span>
+                        <span id="deltaTReadout" class="text-slate-500 font-sans"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. HISTORIAL / ESPECTROGRAMA (Waterfall Térmico) -->
+            <section class="card overflow-hidden flex flex-col">
+                <div class="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-2 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="h-2.5 w-2.5 rounded-full bg-[#16f9ad] ring-2 ring-[#16f9ad]/40"></span>
+                        <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Espectrograma &bull; Cascada Térmica (Waterfall)</h3>
+                    </div>
+                    <span class="text-xs text-slate-500 font-mono">Historial (Tiempo &darr;)</span>
+                </div>
+                <!-- Canvas de Historial -->
+                <div class="relative bg-black">
+                    <canvas id="waterfallCanvas" class="w-full h-[200px] block"></canvas>
+                </div>
+                
+                <!-- Eje X de frecuencia unificado -->
+                <div class="bg-slate-100 dark:bg-slate-800 px-4 py-1.5 flex justify-between text-[11px] text-slate-600 dark:text-slate-400 font-mono border-t border-slate-200 dark:border-slate-700">
+                    <span>0 Hz</span>
+                    <span id="midFreqLabel">1.1 kHz</span>
+                    <span id="nyquistLabel">2.2 kHz</span>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Script cargado al final del body -->
+    <script src="transformada.js"></script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sintetizador y Diseñador de Ondas &bull; Manual y Función</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        };
+
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="min-h-screen p-3 md:p-8 flex flex-col items-center">
+    
+    <!-- ENCABEZADO -->
+    <header class="w-full max-w-5xl mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+            <h1 class="text-xl sm:text-2xl md:text-3xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                <svg class="w-7 h-7 sm:w-8 sm:h-8 text-[#1625f9] dark:text-[#16f9ad] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                <span>Diseñador y Sintetizador de Ondas</span>
+            </h1>
+            <p class="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-0.5">Define tu onda a mano o por función matemática f(t), calcula su Transformada de Fourier y escucha su timbre</p>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+            <!-- Botón Volver al Analizador FFT -->
+            <a href="analizador_espectral_fft.html" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-3 rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-all">
+                <span>⬅ Volver al Analizador FFT</span>
+            </a>
+
+            <!-- Botón de Modo Oscuro -->
+            <button id="btnToggleDark" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 p-2 rounded-lg text-slate-700 dark:text-slate-200 transition-colors shadow-sm flex items-center justify-center h-9 w-9" title="Alternar Modo Oscuro / Claro">
+                <span id="darkIcon">🌙</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-5xl space-y-6">
+        
+        <!-- SECCIÓN 1: SELECTOR DE MODO (DIBUJAR A MANO VS POR FUNCIÓN) -->
+        <section class="card p-5">
+            <!-- PESTAÑAS DE SELECCIÓN DE MODO -->
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <button id="tabModeDraw" class="px-4 py-2 text-xs sm:text-sm font-bold rounded-lg border-2 border-[#1625f9] bg-blue-50 dark:bg-blue-950/60 text-[#1625f9] dark:text-[#16f9ad] transition-all flex items-center gap-1.5 shadow-sm">
+                        <span>✍️ Dibujar a Mano</span>
+                    </button>
+                    <button id="tabModeFunction" class="px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5">
+                        <span>📐 Por Función Matemática f(t)</span>
+                    </button>
+                </div>
+                <span class="text-xs font-mono text-slate-400 dark:text-slate-500 hidden sm:inline">1 Periodo (T)</span>
+            </div>
+
+            <!-- CONTROLES PARA MODO 1: DIBUJAR A MANO -->
+            <div id="drawControlsPanel" class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <p class="text-xs text-slate-500 dark:text-slate-400">Haz clic y arrastra con el ratón o dedo sobre el lienzo para trazar libremente.</p>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Plantillas:</span>
+                    <button type="button" class="template-btn px-2 py-1 text-xs font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700" data-type="sine">Seno</button>
+                    <button type="button" class="template-btn px-2 py-1 text-xs font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700" data-type="square">Cuadrada</button>
+                    <button type="button" class="template-btn px-2 py-1 text-xs font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700" data-type="triangle">Triangular</button>
+                    <button type="button" class="template-btn px-2 py-1 text-xs font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700" data-type="sawtooth">Sierra</button>
+                    <button type="button" class="template-btn px-2 py-1 text-xs font-semibold rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700" data-type="pulse">Pulso</button>
+                    <button type="button" id="btnSmooth" class="px-2 py-1 text-xs font-semibold rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white border border-emerald-200 dark:border-emerald-800" title="Suavizar trazo con filtro paso bajo">Suavizar</button>
+                    <button type="button" id="btnClearDraw" class="px-2 py-1 text-xs font-semibold rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">Limpiar</button>
+                </div>
+            </div>
+
+            <!-- CONTROLES PARA MODO 2: POR FUNCIÓN MATEMÁTICA f(t) -->
+            <div id="functionControlsPanel" class="hidden space-y-3 mb-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label for="functionInput" class="text-sm font-bold text-slate-700 dark:text-slate-200 shrink-0 font-mono">f(t) =</label>
+                    <div class="relative flex-1">
+                        <input type="text" id="functionInput" value="sin(2*pi*t) + 0.33*sin(6*pi*t) + 0.2*sin(10*pi*t)" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-mono text-sm font-bold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#1625f9]" placeholder="Ej: sin(2*pi*t) + 0.5*sin(4*pi*t)">
+                    </div>
+                    <button id="btnApplyFunction" class="bg-[#1625f9] hover:bg-[#0d1bb3] text-white font-bold px-4 py-2 rounded-lg text-xs sm:text-sm shrink-0 transition-all flex items-center gap-1 shadow-sm">
+                        <span>Graficar Función</span>
+                    </button>
+                </div>
+
+                <!-- Mensaje de error / estado de la función -->
+                <div id="functionError" class="text-xs text-red-500 font-medium hidden"></div>
+
+                <!-- Botones de Presets Matemáticos Físicos -->
+                <div>
+                    <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">Fórmulas Físicas Prediseñadas:</span>
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <button type="button" class="fn-preset-btn px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-slate-200 dark:border-slate-700 transition-colors font-mono" data-expr="sin(2*pi*t) + 0.33*sin(6*pi*t) + 0.2*sin(10*pi*t)">
+                            Fourier: Cuadrada
+                        </button>
+                        <button type="button" class="fn-preset-btn px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-slate-200 dark:border-slate-700 transition-colors font-mono" data-expr="sin(2*pi*t) - 0.5*sin(4*pi*t) + 0.33*sin(6*pi*t)">
+                            Fourier: Sierra
+                        </button>
+                        <button type="button" class="fn-preset-btn px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-slate-200 dark:border-slate-700 transition-colors font-mono" data-expr="sin(2*pi*t) * cos(0.2*pi*t)">
+                            Batimiento
+                        </button>
+                        <button type="button" class="fn-preset-btn px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-slate-200 dark:border-slate-700 transition-colors font-mono" data-expr="exp(-2.5*t) * sin(6*pi*t)">
+                            Amortiguada
+                        </button>
+                        <button type="button" class="fn-preset-btn px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-slate-200 dark:border-slate-700 transition-colors font-mono" data-expr="abs(sin(2*pi*t)) * 1.8 - 0.9">
+                            Rectificada
+                        </button>
+                        <button type="button" class="fn-preset-btn px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-slate-200 dark:border-slate-700 transition-colors font-mono" data-expr="sin(2*pi*t + 2*sin(4*pi*t))">
+                            Modulación FM
+                        </button>
+                    </div>
+                </div>
+
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                    * La variable <code>t</code> va de 0.0 a 1.0 (un periodo). Soporta: <code>sin()</code>, <code>cos()</code>, <code>tan()</code>, <code>abs()</code>, <code>exp()</code>, <code>sqrt()</code>, <code>pi</code>, <code>^</code>.
+                </p>
+            </div>
+
+            <!-- Canvas de Dibujo / Graficación de 1 Ciclo -->
+            <div class="relative bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden cursor-crosshair">
+                <canvas id="drawCanvas" class="w-full h-[220px] block"></canvas>
+            </div>
+            
+            <div class="flex justify-between items-center text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-1 px-1">
+                <span>t = 0</span>
+                <span>Periodo T (1 ciclo completo)</span>
+                <span>t = T</span>
+            </div>
+        </section>
+
+        <!-- SECCIÓN 2: CONTROLES DE REPRODUCCIÓN Y PREVISUALIZACIÓN MULTI-CICLO -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- PANEL DE CONTROL DE AUDIO -->
+            <section class="card p-5 md:col-span-1 space-y-4">
+                <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Control de Reproducción</h3>
+
+                <!-- Botones Play / Stop -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btnPlayWave" class="bg-[#1625f9] hover:bg-[#0d1bb3] text-white font-bold py-2.5 px-3 rounded shadow-sm text-sm flex items-center justify-center gap-1.5 transition-all">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"/></svg>
+                        Escuchar
+                    </button>
+                    <button id="btnStopWave" disabled class="bg-slate-200 dark:bg-slate-800 text-slate-400 font-bold py-2.5 px-3 rounded text-sm flex items-center justify-center gap-1.5 cursor-not-allowed transition-all">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"/></svg>
+                        Detener
+                    </button>
+                </div>
+
+                <!-- Frecuencia -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Frecuencia (f₀)</label>
+                        <div class="flex items-center space-x-1">
+                            <input type="number" id="playFreqInput" min="50" max="2000" value="440" class="w-20 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-mono text-sm font-bold rounded focus:ring-2 focus:ring-[#1625f9] p-1 outline-none text-center">
+                            <span class="text-xs font-bold text-slate-500 dark:text-slate-400">Hz</span>
+                        </div>
+                    </div>
+                    <input id="playFreqSlider" type="range" min="50" max="1500" value="440" step="1">
+                    
+                    <div class="flex justify-between gap-1 mt-2">
+                        <button type="button" class="freq-preset-btn text-xs font-semibold px-2 py-1 rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700 flex-1 text-center" data-freq="220">220 Hz</button>
+                        <button type="button" class="freq-preset-btn text-xs font-bold px-2 py-1 rounded bg-blue-100 dark:bg-blue-950/60 text-[#1625f9] dark:text-[#16f9ad] hover:bg-[#1625f9] hover:text-white border border-blue-300 dark:border-blue-800 flex-1 text-center" data-freq="440">440 Hz</button>
+                        <button type="button" class="freq-preset-btn text-xs font-semibold px-2 py-1 rounded bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 hover:bg-[#1625f9] hover:text-white border border-blue-200 dark:border-slate-700 flex-1 text-center" data-freq="880">880 Hz</button>
+                    </div>
+                </div>
+
+                <!-- Volumen -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Volumen</label>
+                        <span id="playVolumeValue" class="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">30%</span>
+                    </div>
+                    <input id="playVolumeSlider" type="range" min="0" max="100" value="30" step="1">
+                </div>
+            </section>
+
+            <!-- PREVISUALIZACIÓN MULTI-CICLO (Señal Periódica Continua) -->
+            <section class="card p-5 md:col-span-2 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide mb-1">Onda Periódica Resultante (3 Ciclos Continuos)</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Muestra cómo se enlaza y suena tu ciclo repetido periódicamente en el tiempo.</p>
+                </div>
+                <div class="relative bg-slate-950 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800">
+                    <canvas id="multiCycleCanvas" class="w-full h-[140px] block"></canvas>
+                </div>
+                <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1 px-1">
+                    <span>Ciclo 1</span>
+                    <span>Ciclo 2</span>
+                    <span>Ciclo 3</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- SECCIÓN 3: DESCOMPOSICIÓN EN SERIE DE FOURIER (ARMÓNICOS CALCULADOS) -->
+        <section class="card p-5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <div>
+                    <h2 class="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <span>Descomposición Espectral de Fourier &bull; Armónicos (cₙ)</span>
+                    </h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Transformada Discreta calculada a partir de tu onda (cₙ = √(aₙ² + bₙ²)).</p>
+                </div>
+                <span class="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700">
+                    32 Armónicos
+                </span>
+            </div>
+
+            <div class="relative bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                <canvas id="harmonicsCanvas" class="w-full h-[180px] block"></canvas>
+            </div>
+            
+            <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1 px-1">
+                <span>Armónico 1 (Fundamental f₀)</span>
+                <span>Frecuencias Armónicas (n × f₀) &rarr;</span>
+                <span>Armónico 32</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- SCRIPT DE SÍNTESIS Y DIBUJO -->
+    <script src="dibujar_onda.js"></script>
+</body>
+</html>
